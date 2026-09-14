@@ -1,68 +1,42 @@
 
 import streamlit as st
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, f1_score
+import numpy as np
+import tensorflow as tf
+import joblib
 
-# Page setup
 st.set_page_config(
     page_title="Student Risk Prediction",
     page_icon="🎓",
     layout="centered"
 )
 
-st.title("🎓 Student Risk Prediction System")
-st.write("Early identification of students who may be at academic risk.")
-
-# Load dataset
+# Load dataset, model and scaler
 df = pd.read_csv("dataset.csv", sep=";")
+model = tf.keras.models.load_model("student_risk_model.keras")
+scaler = joblib.load("scaler.pkl")
 
-# Prepare data
-X = df.drop("Target", axis=1)
+features = df.drop("Target", axis=1).columns.tolist()
 
-y = df["Target"].map({
-    "Dropout": 1,
-    "Graduate": 0,
-    "Enrolled": 0
-})
-
-# Scale data
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)
-
-# Train and test
-X_train, X_test, y_train, y_test = train_test_split(
-    X_scaled,
-    y,
-    test_size=0.2,
-    random_state=42
+st.title("🎓 Student Risk Prediction System")
+st.write(
+    "Predict whether a student is Safe or At-Risk "
+    "based on academic information."
 )
 
-# Logistic Regression model
-model = LogisticRegression(max_iter=1000)
-model.fit(X_train, y_train)
-
-# Model performance
-test_prediction = model.predict(X_test)
-accuracy = accuracy_score(y_test, test_prediction)
-f1 = f1_score(y_test, test_prediction)
-
-# ---------------- STUDENT DETAILS ----------------
-
+# Student Details
 st.header("👤 Student Details")
 
 name = st.text_input("Student Name")
-reg_no = st.text_input("Register Number")
+register_no = st.text_input("Register Number")
 
 department = st.selectbox(
     "Department",
     [
         "B.Sc Information Technology",
-        "BCA",
         "B.Sc Computer Science",
-        "Other"
+        "BCA",
+        "B.Sc Data Science"
     ]
 )
 
@@ -74,20 +48,19 @@ year = st.selectbox(
 semester = st.selectbox(
     "Semester",
     [
-        "Semester 1",
-        "Semester 2",
-        "Semester 3",
-        "Semester 4",
-        "Semester 5",
-        "Semester 6"
+        "I Semester",
+        "II Semester",
+        "III Semester",
+        "IV Semester",
+        "V Semester",
+        "VI Semester"
     ]
 )
 
-# ---------------- ACADEMIC INFORMATION ----------------
-
+# Academic Information
 st.header("📚 Academic Information")
 
-academic_fields = [
+selected_features = [
     "Curricular units 1st sem (approved)",
     "Curricular units 1st sem (enrolled)",
     "Curricular units 1st sem (evaluations)",
@@ -98,21 +71,20 @@ academic_fields = [
     "Curricular units 2nd sem (grade)"
 ]
 
-# Store user values
-user_values = {}
+values = {}
 
-for field in academic_fields:
-    if field in X.columns:
-        user_values[field] = st.number_input(
-            field,
-            value=float(df[field].median())
+for feature in selected_features:
+    if feature in df.columns:
+        values[feature] = st.number_input(
+            feature,
+            min_value=0.0,
+            value=float(df[feature].median())
         )
 
-# ---------------- ADDITIONAL INFORMATION ----------------
+# Additional Information
+st.header("📋 Additional Information")
 
-st.header("📊 Additional Information")
-
-additional_fields = [
+additional_features = [
     "Tuition fees up to date",
     "Scholarship holder",
     "Debtor",
@@ -121,91 +93,98 @@ additional_fields = [
     "Age at enrollment"
 ]
 
-for field in additional_fields:
-    if field in X.columns:
-        user_values[field] = st.number_input(
-            field,
-            value=float(df[field].median())
+for feature in additional_features:
+    if feature in df.columns:
+
+        if feature == "Age at enrollment":
+            values[feature] = st.number_input(
+                feature,
+                min_value=15.0,
+                max_value=100.0,
+                value=float(df[feature].median())
+            )
+        else:
+            values[feature] = st.selectbox(
+                feature,
+                [0, 1]
+            )
+
+# Prediction
+if st.button("🔍 Predict Risk"):
+
+    if name.strip() == "" or register_no.strip() == "":
+        st.warning(
+            "Please enter Student Name and Register Number."
         )
 
-# ---------------- PREDICTION ----------------
-
-st.header("🎯 Prediction")
-
-if st.button("Predict Risk", type="primary"):
-
-    if name.strip() == "" or reg_no.strip() == "":
-        st.warning("⚠️ Please enter Student Name and Register Number.")
-
     else:
-        # Create input using dataset median values
-        input_values = []
+        # Create complete model input
+        input_data = pd.DataFrame(
+            [df[features].median().values],
+            columns=features
+        )
 
-        for column in X.columns:
+        # Replace selected values
+        for feature, value in values.items():
+            if feature in input_data.columns:
+                input_data.loc[0, feature] = value
 
-            if column in user_values:
-                value = user_values[column]
+        # Scale
+        input_scaled = scaler.transform(input_data)
 
-            else:
-                value = float(df[column].median())
+        # LSTM input shape
+        input_lstm = input_scaled.reshape(
+            1, 1, len(features)
+        )
 
-            input_values.append(value)
+        # Prediction
+        risk_probability = float(
+            model.predict(input_lstm, verbose=0)[0][0]
+        )
 
-        # Scale input
-        input_data = scaler.transform([input_values])
+        safe_probability = 1 - risk_probability
 
-        # Prediction probability
-        probability = model.predict_proba(input_data)[0][1]
-
-        safe_probability = 1 - probability
-        at_risk_probability = probability
-
-        # Result
-        st.subheader("📌 Prediction Result")
+        st.header("📊 Prediction Result")
 
         col1, col2 = st.columns(2)
 
         with col1:
-            st.success(
-                f"✅ Safe Probability\n\n"
+            st.metric(
+                "Safe Probability",
                 f"{safe_probability:.2%}"
             )
 
         with col2:
-            st.error(
-                f"⚠️ At-Risk Probability\n\n"
-                f"{at_risk_probability:.2%}"
+            st.metric(
+                "At-Risk Probability",
+                f"{risk_probability:.2%}"
             )
 
-        if probability >= 0.5:
-            st.error("⚠️ Overall Prediction: At-Risk Student")
+        if risk_probability >= 0.5:
+            st.error("⚠️ Prediction: AT-RISK STUDENT")
         else:
-            st.success("✅ Overall Prediction: Safe Student")
+            st.success("✅ Prediction: SAFE STUDENT")
 
-        # Student information
-        st.info(
-            f"👤 Student: {name}\n\n"
-            f"🆔 Register Number: {reg_no}\n\n"
-            f"🏫 Department: {department}\n\n"
-            f"📅 Year: {year}\n\n"
-            f"📖 Semester: {semester}"
-        )
+        # Student Information
+        st.subheader("Student Information")
 
-# ---------------- MODEL INFORMATION ----------------
+        st.write(f"**Name:** {name}")
+        st.write(f"**Register Number:** {register_no}")
+        st.write(f"**Department:** {department}")
+        st.write(f"**Year:** {year}")
+        st.write(f"**Semester:** {semester}")
 
+# Model Information
 st.divider()
 
 st.subheader("🤖 Model Information")
 
-col1, col2 = st.columns(2)
-
-with col1:
-    st.metric("Model", "Logistic Regression")
-
-with col2:
-    st.metric("Accuracy", f"{accuracy:.2%}")
+st.write("**Model:** LSTM (Long Short-Term Memory)")
+st.write("**Test Accuracy:** 87.91%")
+st.write("**Dataset:** UCI Student Academic Success Dataset")
 
 st.caption(
     "The system uses academic and student-related information "
     "to estimate the student's academic risk."
 )
+
