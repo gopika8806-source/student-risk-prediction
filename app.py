@@ -103,11 +103,16 @@ for feature in additional_features:
                 max_value=100.0,
                 value=float(df[feature].median())
             )
+
         else:
-            values[feature] = st.selectbox(
+            answer = st.selectbox(
                 feature,
-                [0, 1]
+                ["Yes", "No"]
             )
+
+            # Convert Yes/No to dataset values
+            values[feature] = 1 if answer == "Yes" else 0
+
 
 # Prediction
 if st.button("🔍 Predict Risk"):
@@ -129,7 +134,7 @@ if st.button("🔍 Predict Risk"):
             if feature in input_data.columns:
                 input_data.loc[0, feature] = value
 
-        # Scale
+        # Scale input
         input_scaled = scaler.transform(input_data)
 
         # LSTM input shape
@@ -139,7 +144,10 @@ if st.button("🔍 Predict Risk"):
 
         # Prediction
         risk_probability = float(
-            model.predict(input_lstm, verbose=0)[0][0]
+            model.predict(
+                input_lstm,
+                verbose=0
+            )[0][0]
         )
 
         safe_probability = 1 - risk_probability
@@ -161,9 +169,13 @@ if st.button("🔍 Predict Risk"):
             )
 
         if risk_probability >= 0.5:
-            st.error("⚠️ Prediction: AT-RISK STUDENT")
+            st.error(
+                "⚠️ Prediction: AT-RISK STUDENT"
+            )
         else:
-            st.success("✅ Prediction: SAFE STUDENT")
+            st.success(
+                "✅ Prediction: SAFE STUDENT"
+            )
 
         # Student Information
         st.subheader("Student Information")
@@ -174,17 +186,25 @@ if st.button("🔍 Predict Risk"):
         st.write(f"**Year:** {year}")
         st.write(f"**Semester:** {semester}")
 
+
 # Model Information
 st.divider()
 
 st.subheader("🤖 Model Information")
 
-st.write("**Model:** LSTM (Long Short-Term Memory)")
-st.write("**Test Accuracy:** 87.91%")
-st.write("**Dataset:** UCI Student Academic Success Dataset")
+st.write(
+    "**Model:** LSTM (Long Short-Term Memory)"
+)
+
+st.write(
+    "**Test Accuracy:** 87.91%"
+)
+
+st.write(
+    "**Dataset:** UCI Student Academic Success Dataset"
+)
 
 st.caption(
     "The system uses academic and student-related information "
     "to estimate the student's academic risk."
 )
-
