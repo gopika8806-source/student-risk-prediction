@@ -19,6 +19,7 @@ scaler = joblib.load("scaler.pkl")
 features = df.drop("Target", axis=1).columns.tolist()
 
 st.title("🎓 Student Risk Prediction System")
+
 st.write(
     "Predict whether a student is Safe or At-Risk "
     "based on academic information."
@@ -94,9 +95,11 @@ additional_features = [
 ]
 
 for feature in additional_features:
+
     if feature in df.columns:
 
         if feature == "Age at enrollment":
+
             values[feature] = st.number_input(
                 feature,
                 min_value=15.0,
@@ -105,12 +108,12 @@ for feature in additional_features:
             )
 
         else:
+
             answer = st.selectbox(
                 feature,
                 ["Yes", "No"]
             )
 
-            # Convert Yes/No to dataset values
             values[feature] = 1 if answer == "Yes" else 0
 
 
@@ -118,11 +121,13 @@ for feature in additional_features:
 if st.button("🔍 Predict Risk"):
 
     if name.strip() == "" or register_no.strip() == "":
+
         st.warning(
             "Please enter Student Name and Register Number."
         )
 
     else:
+
         # Create complete model input
         input_data = pd.DataFrame(
             [df[features].median().values],
@@ -131,6 +136,7 @@ if st.button("🔍 Predict Risk"):
 
         # Replace selected values
         for feature, value in values.items():
+
             if feature in input_data.columns:
                 input_data.loc[0, feature] = value
 
@@ -152,6 +158,7 @@ if st.button("🔍 Predict Risk"):
 
         safe_probability = 1 - risk_probability
 
+        # Prediction Result
         st.header("📊 Prediction Result")
 
         col1, col2 = st.columns(2)
@@ -169,16 +176,68 @@ if st.button("🔍 Predict Risk"):
             )
 
         if risk_probability >= 0.5:
+
             st.error(
                 "⚠️ Prediction: AT-RISK STUDENT"
             )
+
         else:
+
             st.success(
                 "✅ Prediction: SAFE STUDENT"
             )
 
+
+        # Academic Performance Graph
+        st.subheader("📈 Academic Performance Graph")
+
+        graph_data = pd.DataFrame({
+
+            "Value": [
+                values.get(
+                    "Curricular units 1st sem (approved)", 0
+                ),
+                values.get(
+                    "Curricular units 1st sem (enrolled)", 0
+                ),
+                values.get(
+                    "Curricular units 1st sem (evaluations)", 0
+                ),
+                values.get(
+                    "Curricular units 1st sem (grade)", 0
+                ),
+                values.get(
+                    "Curricular units 2nd sem (approved)", 0
+                ),
+                values.get(
+                    "Curricular units 2nd sem (enrolled)", 0
+                ),
+                values.get(
+                    "Curricular units 2nd sem (evaluations)", 0
+                ),
+                values.get(
+                    "Curricular units 2nd sem (grade)", 0
+                )
+            ]
+
+        }, index=[
+
+            "1st Approved",
+            "1st Enrolled",
+            "1st Evaluations",
+            "1st Grade",
+            "2nd Approved",
+            "2nd Enrolled",
+            "2nd Evaluations",
+            "2nd Grade"
+
+        ])
+
+        st.line_chart(graph_data)
+
+
         # Student Information
-        st.subheader("Student Information")
+        st.subheader("👤 Student Information")
 
         st.write(f"**Name:** {name}")
         st.write(f"**Register Number:** {register_no}")
